@@ -228,6 +228,9 @@ const errorBox = document.getElementById('errorBox');
 
 const youVideo = document.getElementById('youVideo');
 const guestVideo = document.getElementById('guestVideo');
+document.getElementById('guestTileWrap').addEventListener('click', () => {
+  if(guestVideo.paused) guestVideo.play().catch(() => {});
+});
 const guestEmpty = document.getElementById('guestEmpty');
 const youLabel = document.getElementById('youLabel');
 const callTitle = document.getElementById('callTitle');
@@ -380,6 +383,7 @@ function attachGuestStream(stream){
   guestVideo.srcObject = stream;
   guestVideo.muted = true;
   guestVideo.play().catch(() => {});
+  guestVideo.onloadedmetadata = () => { guestVideo.play().catch(() => {}); };
   guestEmpty.style.display = 'none';
   participantCount.textContent = '2';
 
@@ -388,7 +392,11 @@ function attachGuestStream(stream){
   const unmuteBtn = document.createElement('button');
   unmuteBtn.id = 'unmuteBtn';
   unmuteBtn.textContent = 'Unmute';
-  unmuteBtn.addEventListener('click', () => { guestVideo.muted = false; unmuteBtn.remove(); });
+  unmuteBtn.addEventListener('click', () => {
+    guestVideo.muted = false;
+    guestVideo.play().catch(() => {});
+    unmuteBtn.remove();
+  });
   document.getElementById('guestTileWrap').appendChild(unmuteBtn);
 }
 
