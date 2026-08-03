@@ -315,7 +315,7 @@ joinBtn.addEventListener('click', async () => {
 async function getMedia(){
   try{
     const constraints = {
-      video: { width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:30} },
+      video: { width:{ideal:1080}, height:{ideal:1920}, frameRate:{ideal:30} },
       audio: { echoCancellation:true, noiseSuppression:false, autoGainControl:false }
     };
     if(cameraSelect.value) constraints.video.deviceId = { exact: cameraSelect.value };
@@ -392,6 +392,19 @@ function attachGuestStream(stream){
   document.getElementById('guestTileWrap').appendChild(unmuteBtn);
 }
 
+function boostAudioBitrate(call){
+  try{
+    const pc = call.peerConnection;
+    if(!pc) return;
+    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+    if(!sender) return;
+    const params = sender.getParameters();
+    if(!params.encodings || !params.encodings.length) params.encodings = [{}];
+    params.encodings[0].maxBitrate = 256000;
+    sender.setParameters(params).catch(() => {});
+  } catch(e){ /* not fatal — falls back to default bitrate */ }
+}
+
 function initPeer(iceConfig){
   armConnectTimeout();
   if(!roomId){
@@ -406,6 +419,7 @@ function initPeer(iceConfig){
       currentCall = call;
       call.on('stream', attachGuestStream);
       call.on('close', () => { guestVideo.srcObject = null; guestEmpty.style.display='flex'; participantCount.textContent='1'; });
+      setTimeout(() => boostAudioBitrate(call), 1500);
     });
   } else {
     peer = new Peer(undefined, { debug: 0, config: iceConfig });
@@ -416,6 +430,7 @@ function initPeer(iceConfig){
       call.on('stream', attachGuestStream);
       call.on('close', () => { guestVideo.srcObject = null; guestEmpty.style.display='flex'; participantCount.textContent='1'; });
       call.on('error', e => console.warn('Call error:', e.message));
+      setTimeout(() => boostAudioBitrate(call), 1500);
     });
   }
   peer.on('error', e => console.warn('Connection error:', e.type));
@@ -499,12 +514,14 @@ function showCallEndedState(){
 /* ---------- Combined recording (canvas + mixed audio) ---------- */
 function startCanvasComposite(){
   recCanvas = document.createElement('canvas');
-  recCanvas.width = 1280;
-  recCanvas.height = 1460;
+  recCanvas.width = 1080;
+  recCanvas.height = 1920;
   recCtx = recCanvas.getContext('2d');
 
   function drawCover(ctx, video, x, y, w, h){
-    if(!video || !video.videoWidth) { ctx.fillStyle = '#0b0a07'; ctx.fillRect(x,y,w,h); return; }
+    ctx.fillStyle = '#0b0a07';
+    ctx.fillRect(x, y, w, h);
+    if(!video || !video.videoWidth) return;
     const vRatio = video.videoWidth / video.videoHeight;
     const tRatio = w / h;
     let sx, sy, sw, sh;
@@ -514,10 +531,9 @@ function startCanvasComposite(){
   }
 
   function draw(){
-    const gap = 10;
-    const tileH = (recCanvas.height - gap) / 2;
+    const tileH = recCanvas.height / 2;
     drawCover(recCtx, guestVideo, 0, 0, recCanvas.width, tileH);
-    drawCover(recCtx, youVideo, 0, tileH + gap, recCanvas.width, tileH);
+    drawCover(recCtx, youVideo, 0, tileH, recCanvas.width, tileH);
     recCanvasRafId = requestAnimationFrame(draw);
   }
   draw();
