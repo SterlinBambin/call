@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -259,7 +260,21 @@ function attachGuestStream(stream){
   clearTimeout(connectTimeout);
   clearError();
   guestVideo.srcObject = stream;
-  guestEmpty.style.display = 'none';
+  const playPromise = guestVideo.play();
+  if(playPromise !== undefined){
+    playPromise.then(() => {
+      guestEmpty.style.display = 'none';
+    }).catch(() => {
+      // Autoplay blocked — needs a user gesture to start playback
+      guestEmpty.style.display = 'flex';
+      guestEmpty.innerHTML = '<button id="enableGuestVideoBtn" style="background:var(--brass);color:var(--ink);border:none;padding:10px 16px;border-radius:2px;font-family:\'Space Mono\',monospace;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;cursor:pointer;">Click to start video</button>';
+      document.getElementById('enableGuestVideoBtn').addEventListener('click', () => {
+        guestVideo.play().then(() => { guestEmpty.style.display = 'none'; });
+      });
+    });
+  } else {
+    guestEmpty.style.display = 'none';
+  }
   setStatus('connected', 'connected');
 }
 
