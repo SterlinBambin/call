@@ -139,6 +139,13 @@
       <label for="micSelect">Microphone</label>
       <select id="micSelect"></select>
     </div>
+    <div class="field">
+      <label for="recordModeSelect">Recording</label>
+      <select id="recordModeSelect">
+        <option value="all" selected>All 3 files (you + guest + combined)</option>
+        <option value="combined">Just the combined video</option>
+      </select>
+    </div>
 
     <button class="primary-btn" id="joinBtn">Enable camera &amp; start</button>
     <div class="setup-note" id="setupNote">This gives you a link to send your guest. Once they join, you'll both be in the call — hit record when you're ready to start the take.</div>
@@ -224,6 +231,7 @@ const cameraSelect = document.getElementById('cameraSelect');
 const micSelect = document.getElementById('micSelect');
 const sessionInput = document.getElementById('sessionName');
 const participantInput = document.getElementById('participant');
+const recordModeSelect = document.getElementById('recordModeSelect');
 const errorBox = document.getElementById('errorBox');
 
 const youVideo = document.getElementById('youVideo');
@@ -645,13 +653,16 @@ function beginRecording(){
   takeCount++;
   activeRecorders = [];
   soloCanvasStopFns = [];
+  const recordAll = recordModeSelect.value === 'all';
 
   // 1. Your full camera, uncropped, correctly oriented (portrait stays portrait)
-  const youStream = createOrientedStream(youVideo, localStream.getAudioTracks()[0]);
-  startOneRecorder(youStream, mime, 'you');
+  if(recordAll){
+    const youStream = createOrientedStream(youVideo, localStream.getAudioTracks()[0]);
+    startOneRecorder(youStream, mime, 'you');
+  }
 
   // 2. Guest's full camera, uncropped, correctly oriented (only if connected)
-  if(remoteStream){
+  if(recordAll && remoteStream){
     const guestStream = createOrientedStream(guestVideo, remoteStream.getAudioTracks()[0]);
     startOneRecorder(guestStream, mime, 'guest');
   }
