@@ -260,22 +260,19 @@ function attachGuestStream(stream){
   clearTimeout(connectTimeout);
   clearError();
   guestVideo.srcObject = stream;
-  const playPromise = guestVideo.play();
-  if(playPromise !== undefined){
-    playPromise.then(() => {
-      guestEmpty.style.display = 'none';
-    }).catch(() => {
-      // Autoplay blocked — needs a user gesture to start playback
-      guestEmpty.style.display = 'flex';
-      guestEmpty.innerHTML = '<button id="enableGuestVideoBtn" style="background:var(--brass);color:var(--ink);border:none;padding:10px 16px;border-radius:2px;font-family:\'Space Mono\',monospace;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;cursor:pointer;">Click to start video</button>';
-      document.getElementById('enableGuestVideoBtn').addEventListener('click', () => {
-        guestVideo.play().then(() => { guestEmpty.style.display = 'none'; });
-      });
-    });
-  } else {
-    guestEmpty.style.display = 'none';
-  }
+  guestVideo.muted = true; // muted autoplay is always allowed — picture shows immediately
+  guestVideo.play().catch(() => {});
+  guestEmpty.style.display = 'none';
   setStatus('connected', 'connected');
+
+  const existingBtn = document.getElementById('unmuteBtn');
+  if(existingBtn) existingBtn.remove();
+  const unmuteBtn = document.createElement('button');
+  unmuteBtn.id = 'unmuteBtn';
+  unmuteBtn.textContent = 'Unmute';
+  unmuteBtn.style.cssText = "position:absolute;top:8px;right:8px;background:var(--brass);color:var(--ink);border:none;padding:6px 12px;border-radius:20px;font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;cursor:pointer;z-index:5;";
+  unmuteBtn.addEventListener('click', () => { guestVideo.muted = false; unmuteBtn.remove(); });
+  document.getElementById('guestTile').appendChild(unmuteBtn);
 }
 
 const ICE_CONFIG = {
