@@ -207,7 +207,6 @@ let remoteStream = null;
 let peer = null;
 let currentCall = null;
 let meterAudioCtx, analyser, dataArray, meterRafId;
-let mediaRecorder, chunks = [];
 let takeCount = 1;
 let startTime, timerInterval;
 let recording = false;
@@ -518,7 +517,7 @@ function startCanvasComposite(){
   recCanvas.height = 1920;
   recCtx = recCanvas.getContext('2d');
 
-  function drawCover(ctx, video, x, y, w, h){
+  function drawTile(ctx, video, x, y, w, h){
     ctx.fillStyle = '#0b0a07';
     ctx.fillRect(x, y, w, h);
     if(!video || !video.videoWidth) return;
@@ -532,8 +531,8 @@ function startCanvasComposite(){
 
   function draw(){
     const tileH = recCanvas.height / 2;
-    drawCover(recCtx, guestVideo, 0, 0, recCanvas.width, tileH);
-    drawCover(recCtx, youVideo, 0, tileH, recCanvas.width, tileH);
+    drawTile(recCtx, guestVideo, 0, 0, recCanvas.width, tileH);
+    drawTile(recCtx, youVideo, 0, tileH, recCanvas.width, tileH);
     recCanvasRafId = requestAnimationFrame(draw);
   }
   draw();
@@ -568,29 +567,42 @@ function pickSupportedMime(){
   return null;
 }
 
+let activeRecorders = [];
+let currentTakeNumber = 1;
+
 function beginRecording(){
   clearCallError();
   if(!remoteStream){
     showCallError('Recording solo — your guest hasn\'t joined yet, so this take will only have your side.');
   }
-  chunks = [];
-  const canvasVideoStream = startCanvasComposite();
-  const mixedAudioTrack = buildMixedAudio();
-  const combined = new MediaStream([...canvasVideoStream.getVideoTracks(), mixedAudioTrack]);
 
   const mime = pickSupportedMime();
   if(!mime){
     showCallError('This browser can\'t record video in a supported format. Try Chrome or a recent Safari.');
     return;
   }
-  try{
-    mediaRecorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 8000000, audioBitsPerSecond: 192000 });
-  } catch(e){ showCallError('Recording failed to start: ' + e.message); return; }
 
-  mediaRecorder.onerror = e => { showCallError('Recording error: ' + (e.error ? e.error.message : 'unknown error')); };
-  mediaRecorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
-  mediaRecorder.onstop = () => { const blob = new Blob(chunks, { type: mime }); addTakeToLog(blob, mime); };
-  mediaRecorder.start();
+  currentTakeNumber = takeCount;
+  takeCount++;
+  activeRecorders = [];
+
+  // 1. Your full camera, uncropped, raw quality
+  startOneRecorder(localStream, mime, 'you');
+
+  // 2. Guest's full camera, uncropped, at call quality (only if connected)
+  if(remoteStream) startOneRecorder(remoteStream, mime, 'guest');
+
+  // 3. The combined 9:16 split-screen composite (as before)
+  const canvasVideoStream = startCanvasComposite();
+  const mixedAudioTrack = buildMixedAudio();
+  const combined = new MediaStream([...canvasVideoStream.getVideoTracks(), mixedAudioTrack]);
+  startOneRecorder(combined, mime, 'combined');
+
+  if(!activeRecorders.length){
+    showCallError('Recording failed to start.');
+    return;
+  }
+
   recording = true;
   startTime = Date.now();
   timerInterval = setInterval(() => { timecodeEl.textContent = formatTC(Date.now()-startTime); }, 250);
@@ -600,8 +612,21 @@ function beginRecording(){
   tallyText.textContent = 'RECORDING';
 }
 
+function startOneRecorder(stream, mime, label){
+  let rec;
+  try{
+    rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000, audioBitsPerSecond: 192000 });
+  } catch(e){ showCallError('Could not start the "' + label + '" recording: ' + e.message); return; }
+  const chunks = [];
+  rec.onerror = e => { showCallError('Recording error (' + label + '): ' + (e.error ? e.error.message : 'unknown error')); };
+  rec.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
+  rec.onstop = () => { const blob = new Blob(chunks, { type: mime }); addTakeToLog(blob, mime, label); };
+  rec.start();
+  activeRecorders.push(rec);
+}
+
 function finishRecording(){
-  mediaRecorder.stop();
+  activeRecorders.forEach(r => { if(r.state !== 'inactive') r.stop(); });
   if(recCanvasRafId) cancelAnimationFrame(recCanvasRafId);
   if(mixAudioCtx) mixAudioCtx.close();
   clearInterval(timerInterval);
@@ -613,17 +638,16 @@ function finishRecording(){
   timecodeEl.textContent = '00:00:00';
 }
 
-function addTakeToLog(blob, mime){
+function addTakeToLog(blob, mime, label){
   const ext = (mime && mime.includes('mp4')) ? 'mp4' : 'webm';
-  const fname = `${slug(sessionInput.value)}_conversation_take${pad(takeCount)}.${ext}`;
+  const fname = `${slug(sessionInput.value)}_${label}_take${pad(currentTakeNumber)}.${ext}`;
   const url = URL.createObjectURL(blob);
   const sizeMB = (blob.size / (1024*1024)).toFixed(1);
   if(takesList.querySelector('.empty-log')) takesList.innerHTML = '';
   const row = document.createElement('div');
   row.className = 'take-item';
-  row.innerHTML = `<div class="meta">Take ${pad(takeCount)} · ${sizeMB} MB<span class="fname">${fname}</span></div><a href="${url}" download="${fname}">Download</a>`;
+  row.innerHTML = `<div class="meta">Take ${pad(currentTakeNumber)} · ${label} · ${sizeMB} MB<span class="fname">${fname}</span></div><a href="${url}" download="${fname}">Download</a>`;
   takesList.prepend(row);
-  takeCount++;
 
   // Auto-download immediately so the file lands on disk without relying on a manual click
   const autoLink = document.createElement('a');
