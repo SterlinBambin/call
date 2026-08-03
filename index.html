@@ -50,6 +50,15 @@
   .link-row input{flex:1;background:var(--panel-light2);border:1px solid var(--hairline);color:var(--paper);padding:8px 9px;border-radius:4px;font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.74rem;}
   .link-row button{background:var(--brass);color:var(--ink);border:none;padding:0 12px;border-radius:4px;font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.66rem;letter-spacing:0.06em;text-transform:uppercase;font-weight:700;cursor:pointer;}
 
+  .call-error-banner{display:none;margin:0 18px 10px;background:rgba(166,61,47,0.18);border:1px solid var(--tally);color:var(--paper);padding:10px 14px;border-radius:6px;font-size:0.85rem;flex-shrink:0;}
+  .call-error-banner.show{display:block;}
+  #callScreen.immersive .call-topbar,
+  #callScreen.immersive .control-bar,
+  #callScreen.immersive .call-error-banner{display:none !important;}
+  .exit-fullscreen-btn{display:none;position:fixed;top:14px;right:14px;z-index:40;width:38px;height:38px;border-radius:50%;background:rgba(11,10,7,0.65);border:1px solid var(--hairline);color:var(--paper);align-items:center;justify-content:center;cursor:pointer;font-size:1rem;}
+  #callScreen.immersive .exit-fullscreen-btn{display:flex;}
+  #callScreen.immersive .video-stack{padding:0;gap:2px;}
+  #callScreen.immersive .tile{border-radius:0;}
   .video-stack{flex:1;display:flex;flex-direction:column;gap:6px;padding:0 10px;min-height:0;}
   .tile{position:relative;flex:1;background:#0b0a07;border-radius:8px;overflow:hidden;min-height:0;}
   .tile video{width:100%;height:100%;object-fit:cover;display:block;}
@@ -143,9 +152,12 @@
     <div class="call-topbar-right">
       <button class="icon-btn" id="linkBtn" title="Copy invite link">🔗</button>
       <div class="badge"><span id="participantCount">1</span> in call</div>
+      <button class="icon-btn" id="fullscreenBtn" title="Fullscreen — just the two of you">⛶</button>
       <button class="icon-btn" id="takesBtn" title="Takes">☰</button>
     </div>
   </div>
+
+  <div class="call-error-banner" id="callErrorBanner"></div>
 
   <div class="link-toast" id="linkToast">
     <label>Session link</label>
@@ -154,6 +166,8 @@
       <button id="copyBtn">Copy</button>
     </div>
   </div>
+
+  <button class="exit-fullscreen-btn" id="exitFullscreenBtn" title="Exit fullscreen">✕</button>
 
   <div class="video-stack">
     <div class="tile" id="guestTileWrap">
@@ -223,6 +237,26 @@ const linkToast = document.getElementById('linkToast');
 const linkInput = document.getElementById('linkInput');
 const copyBtn = document.getElementById('copyBtn');
 const takesBtn = document.getElementById('takesBtn');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const exitFullscreenBtn = document.getElementById('exitFullscreenBtn');
+
+function enterImmersive(){
+  callScreen.classList.add('immersive');
+  if(document.documentElement.requestFullscreen){
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
+function exitImmersive(){
+  callScreen.classList.remove('immersive');
+  if(document.fullscreenElement && document.exitFullscreen){
+    document.exitFullscreen().catch(() => {});
+  }
+}
+fullscreenBtn.addEventListener('click', enterImmersive);
+exitFullscreenBtn.addEventListener('click', exitImmersive);
+document.addEventListener('fullscreenchange', () => {
+  if(!document.fullscreenElement) callScreen.classList.remove('immersive');
+});
 const takesDrawer = document.getElementById('takesDrawer');
 const closeTakesBtn = document.getElementById('closeTakesBtn');
 const drawerBackdrop = document.getElementById('drawerBackdrop');
@@ -237,6 +271,9 @@ const camBtn = document.getElementById('camBtn');
 const hangupBtn = document.getElementById('hangupBtn');
 
 function showError(msg){ errorBox.innerHTML = '<div class="error-box">' + msg + '</div>'; }
+const callErrorBanner = document.getElementById('callErrorBanner');
+function showCallError(msg){ callErrorBanner.textContent = msg; callErrorBanner.classList.add('show'); }
+function clearCallError(){ callErrorBanner.classList.remove('show'); }
 function clearError(){ errorBox.innerHTML = ''; }
 function pad(n){ return n.toString().padStart(2,'0'); }
 function formatTC(ms){ const s = Math.floor(ms/1000); return pad(Math.floor(s/3600)) + ':' + pad(Math.floor((s%3600)/60)) + ':' + pad(s%60); }
@@ -477,22 +514,42 @@ function buildMixedAudio(){
 
 recordBtn.addEventListener('click', () => { if(!recording) beginRecording(); else finishRecording(); });
 
+function pickSupportedMime(){
+  const candidates = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4;codecs=avc1,mp4a',
+    'video/mp4'
+  ];
+  for(const c of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return null;
+}
+
 function beginRecording(){
-  if(!remoteStream){ showError('Wait for your guest to join before recording — this records the combined conversation.'); return; }
-  clearError();
+  clearCallError();
+  if(!remoteStream){
+    showCallError('Recording solo — your guest hasn\'t joined yet, so this take will only have your side.');
+  }
   chunks = [];
   const canvasVideoStream = startCanvasComposite();
   const mixedAudioTrack = buildMixedAudio();
   const combined = new MediaStream([...canvasVideoStream.getVideoTracks(), mixedAudioTrack]);
 
-  let mime = 'video/webm;codecs=vp9,opus';
-  if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
+  const mime = pickSupportedMime();
+  if(!mime){
+    showCallError('This browser can\'t record video in a supported format. Try Chrome or a recent Safari.');
+    return;
+  }
   try{
     mediaRecorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 8000000, audioBitsPerSecond: 192000 });
-  } catch(e){ showError('Recording failed to start: ' + e.message); return; }
+  } catch(e){ showCallError('Recording failed to start: ' + e.message); return; }
 
+  mediaRecorder.onerror = e => { showCallError('Recording error: ' + (e.error ? e.error.message : 'unknown error')); };
   mediaRecorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
-  mediaRecorder.onstop = () => { const blob = new Blob(chunks, { type: mime }); addTakeToLog(blob); };
+  mediaRecorder.onstop = () => { const blob = new Blob(chunks, { type: mime }); addTakeToLog(blob, mime); };
   mediaRecorder.start();
   recording = true;
   startTime = Date.now();
@@ -516,8 +573,9 @@ function finishRecording(){
   timecodeEl.textContent = '00:00:00';
 }
 
-function addTakeToLog(blob){
-  const fname = `${slug(sessionInput.value)}_conversation_take${pad(takeCount)}.webm`;
+function addTakeToLog(blob, mime){
+  const ext = (mime && mime.includes('mp4')) ? 'mp4' : 'webm';
+  const fname = `${slug(sessionInput.value)}_conversation_take${pad(takeCount)}.${ext}`;
   const url = URL.createObjectURL(blob);
   const sizeMB = (blob.size / (1024*1024)).toFixed(1);
   if(takesList.querySelector('.empty-log')) takesList.innerHTML = '';
