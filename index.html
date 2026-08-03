@@ -469,8 +469,32 @@ hangupBtn.addEventListener('click', () => {
   if(currentCall) currentCall.close();
   if(peer) peer.destroy();
   if(localStream) localStream.getTracks().forEach(t => t.stop());
-  location.href = location.origin + location.pathname;
+  guestVideo.srcObject = null;
+  youVideo.srcObject = null;
+  showCallEndedState();
 });
+
+function showCallEndedState(){
+  document.querySelector('.video-stack').innerHTML = `
+    <div class="tile" style="display:flex;align-items:center;justify-content:center;flex:1;">
+      <div style="text-align:center;padding:20px;">
+        <div style="font-family:'Google Sans','Roboto',sans-serif;font-size:1.3rem;margin-bottom:8px;">Call ended</div>
+        <div style="color:var(--paper-dim);font-size:0.9rem;margin-bottom:20px;max-width:280px;">Your recordings are still here — nothing is lost. Open Takes to download them.</div>
+        <button class="primary-btn" id="openTakesAfterEnd" style="max-width:220px;margin:0 auto 12px;">Open takes</button>
+        <div>
+          <a href="#" id="newSessionLink" style="color:var(--paper-dim);font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;text-decoration:underline;">Start a new session</a>
+        </div>
+      </div>
+    </div>
+  `;
+  document.querySelector('.control-bar').style.display = 'none';
+  document.getElementById('openTakesAfterEnd').addEventListener('click', openTakesDrawer);
+  document.getElementById('newSessionLink').addEventListener('click', e => {
+    e.preventDefault();
+    location.href = location.origin + location.pathname;
+  });
+  openTakesDrawer();
+}
 
 /* ---------- Combined recording (canvas + mixed audio) ---------- */
 function startCanvasComposite(){
