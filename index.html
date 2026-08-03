@@ -593,18 +593,25 @@ let soloCanvasStopFns = [];
 
 function createOrientedStream(videoEl, audioTrack){
   const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1920;
   const ctx = canvas.getContext('2d');
-  function sync(){
-    if(videoEl.videoWidth && videoEl.videoHeight){
-      canvas.width = videoEl.videoWidth;
-      canvas.height = videoEl.videoHeight;
-    }
+
+  function drawCoverFrame(){
+    ctx.fillStyle = '#0b0a07';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if(!videoEl.videoWidth) return;
+    const vRatio = videoEl.videoWidth / videoEl.videoHeight;
+    const tRatio = canvas.width / canvas.height;
+    let sx, sy, sw, sh;
+    if(vRatio > tRatio){ sh = videoEl.videoHeight; sw = sh * tRatio; sx = (videoEl.videoWidth - sw) / 2; sy = 0; }
+    else { sw = videoEl.videoWidth; sh = sw / tRatio; sx = 0; sy = (videoEl.videoHeight - sh) / 2; }
+    ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   }
-  sync();
+
   let rafId;
   function draw(){
-    if(canvas.width !== videoEl.videoWidth || canvas.height !== videoEl.videoHeight) sync();
-    if(videoEl.videoWidth) ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    drawCoverFrame();
     rafId = requestAnimationFrame(draw);
   }
   draw();
