@@ -76,9 +76,12 @@
   .rec-dot{width:16px;height:16px;border-radius:50%;background:currentColor;}
   .rec-square{width:14px;height:14px;background:currentColor;border-radius:2px;}
 
+  .drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);opacity:0;pointer-events:none;transition:opacity 0.25s ease;z-index:29;}
+  .drawer-backdrop.show{opacity:1;pointer-events:auto;}
   .takes-drawer{position:fixed;top:0;right:0;height:100vh;width:320px;background:var(--panel);border-left:1px solid var(--hairline);transform:translateX(100%);transition:transform 0.25s ease;z-index:30;padding:20px;overflow-y:auto;}
   .takes-drawer.open{transform:translateX(0);}
-  .takes-drawer h2{font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--paper-dim);margin:0 0 14px;font-weight:400;}
+  .drawer-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .takes-drawer h2{font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--paper-dim);margin:0;font-weight:400;}
   .take-item{background:var(--panel-light2);border:1px solid var(--hairline);border-radius:4px;padding:10px 12px;margin-bottom:8px;}
   .take-item .meta{font-size:0.82rem;margin-bottom:6px;}
   .take-item .fname{font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.72rem;color:var(--brass-bright);display:block;margin-top:3px;word-break:break-all;}
@@ -175,8 +178,12 @@
   </div>
 </div>
 
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
 <div class="takes-drawer" id="takesDrawer">
-  <h2>Takes this session</h2>
+  <div class="drawer-header">
+    <h2 style="margin:0;">Takes this session</h2>
+    <button class="icon-btn" id="closeTakesBtn" title="Close">✕</button>
+  </div>
   <div id="takesList"><div class="empty-log">No takes recorded yet — they'll appear here with a download link.</div></div>
 </div>
 
@@ -217,6 +224,8 @@ const linkInput = document.getElementById('linkInput');
 const copyBtn = document.getElementById('copyBtn');
 const takesBtn = document.getElementById('takesBtn');
 const takesDrawer = document.getElementById('takesDrawer');
+const closeTakesBtn = document.getElementById('closeTakesBtn');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
 const takesList = document.getElementById('takesList');
 const tallyDot = document.getElementById('tallyDot');
 const tallyText = document.getElementById('tallyText');
@@ -382,7 +391,28 @@ copyBtn.addEventListener('click', () => {
     setTimeout(() => copyBtn.textContent = 'Copy', 1500);
   }).catch(() => {});
 });
-takesBtn.addEventListener('click', () => takesDrawer.classList.toggle('open'));
+function openTakesDrawer(){ takesDrawer.classList.add('open'); drawerBackdrop.classList.add('show'); }
+function closeTakesDrawer(){ takesDrawer.classList.remove('open'); drawerBackdrop.classList.remove('show'); }
+takesBtn.addEventListener('click', () => { takesDrawer.classList.contains('open') ? closeTakesDrawer() : openTakesDrawer(); });
+closeTakesBtn.addEventListener('click', closeTakesDrawer);
+drawerBackdrop.addEventListener('click', closeTakesDrawer);
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeTakesDrawer(); });
+
+// Swipe right to close (touch)
+let touchStartX = null;
+takesDrawer.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+takesDrawer.addEventListener('touchmove', e => {
+  if(touchStartX === null) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  if(dx > 0) takesDrawer.style.transform = `translateX(${dx}px)`;
+}, { passive: true });
+takesDrawer.addEventListener('touchend', e => {
+  if(touchStartX === null) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  takesDrawer.style.transform = '';
+  if(dx > 80) closeTakesDrawer();
+  touchStartX = null;
+});
 
 /* ---------- Mic / camera toggles ---------- */
 micBtn.addEventListener('click', () => {
