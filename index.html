@@ -326,7 +326,7 @@ joinBtn.addEventListener('click', async () => {
 async function getMedia(){
   try{
     const constraints = {
-      video: { width:{ideal:1080}, height:{ideal:1920}, frameRate:{ideal:30} },
+      video: { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
       audio: { echoCancellation:true, noiseSuppression:false, autoGainControl:false }
     };
     if(cameraSelect.value) constraints.video.deviceId = { exact: cameraSelect.value };
