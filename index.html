@@ -404,6 +404,16 @@ function boostAudioBitrate(call){
   } catch(e){ /* not fatal — falls back to default bitrate */ }
 }
 
+function handleGuestDisconnected(){
+  guestVideo.srcObject = null;
+  remoteStream = null;
+  guestEmpty.style.display = 'flex';
+  guestEmpty.textContent = 'Guest disconnected';
+  participantCount.textContent = '1';
+  const existingBtn = document.getElementById('unmuteBtn');
+  if(existingBtn) existingBtn.remove();
+}
+
 function initPeer(iceConfig){
   armConnectTimeout();
   if(!roomId){
@@ -417,7 +427,7 @@ function initPeer(iceConfig){
       call.answer(localStream);
       currentCall = call;
       call.on('stream', attachGuestStream);
-      call.on('close', () => { guestVideo.srcObject = null; guestEmpty.style.display='flex'; participantCount.textContent='1'; });
+      call.on('close', handleGuestDisconnected);
       setTimeout(() => boostAudioBitrate(call), 1500);
     });
   } else {
@@ -427,7 +437,7 @@ function initPeer(iceConfig){
       const call = peer.call(roomId, localStream);
       currentCall = call;
       call.on('stream', attachGuestStream);
-      call.on('close', () => { guestVideo.srcObject = null; guestEmpty.style.display='flex'; participantCount.textContent='1'; });
+      call.on('close', handleGuestDisconnected);
       call.on('error', e => console.warn('Call error:', e.message));
       setTimeout(() => boostAudioBitrate(call), 1500);
     });
