@@ -62,6 +62,7 @@
   .video-stack{flex:1;display:flex;flex-direction:column;gap:6px;padding:0 10px;min-height:0;}
   .tile{position:relative;flex:1;background:#0b0a07;border-radius:8px;overflow:hidden;min-height:0;}
   .tile video{width:100%;height:100%;object-fit:cover;display:block;}
+  #youVideo{transform:scaleX(-1);}
   .tile-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.78rem;color:var(--paper-dim);text-align:center;padding:20px;}
   .tile-label{position:absolute;bottom:12px;left:12px;font-family:'Google Sans','Roboto',sans-serif;font-weight:600;font-size:0.85rem;background:rgba(11,10,7,0.55);padding:5px 12px;border-radius:20px;}
   .tally-corner{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:6px;font-family:'Google Sans Code','Roboto Mono',monospace;font-size:0.65rem;letter-spacing:0.08em;background:rgba(11,10,7,0.6);padding:4px 10px 4px 8px;border-radius:20px;}
@@ -580,6 +581,31 @@ function pickSupportedMime(){
 let activeRecorders = [];
 let currentTakeNumber = 1;
 
+let soloCanvasStopFns = [];
+
+function createOrientedStream(videoEl, audioTrack){
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  function sync(){
+    if(videoEl.videoWidth && videoEl.videoHeight){
+      canvas.width = videoEl.videoWidth;
+      canvas.height = videoEl.videoHeight;
+    }
+  }
+  sync();
+  let rafId;
+  function draw(){
+    if(canvas.width !== videoEl.videoWidth || canvas.height !== videoEl.videoHeight) sync();
+    if(videoEl.videoWidth) ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    rafId = requestAnimationFrame(draw);
+  }
+  draw();
+  const stream = canvas.captureStream(30);
+  if(audioTrack) stream.addTrack(audioTrack);
+  soloCanvasStopFns.push(() => cancelAnimationFrame(rafId));
+  return stream;
+}
+
 function beginRecording(){
   clearCallError();
   if(!remoteStream){
@@ -595,12 +621,17 @@ function beginRecording(){
   currentTakeNumber = takeCount;
   takeCount++;
   activeRecorders = [];
+  soloCanvasStopFns = [];
 
-  // 1. Your full camera, uncropped, raw quality
-  startOneRecorder(localStream, mime, 'you');
+  // 1. Your full camera, uncropped, correctly oriented (portrait stays portrait)
+  const youStream = createOrientedStream(youVideo, localStream.getAudioTracks()[0]);
+  startOneRecorder(youStream, mime, 'you');
 
-  // 2. Guest's full camera, uncropped, at call quality (only if connected)
-  if(remoteStream) startOneRecorder(remoteStream, mime, 'guest');
+  // 2. Guest's full camera, uncropped, correctly oriented (only if connected)
+  if(remoteStream){
+    const guestStream = createOrientedStream(guestVideo, remoteStream.getAudioTracks()[0]);
+    startOneRecorder(guestStream, mime, 'guest');
+  }
 
   // 3. The combined 9:16 split-screen composite (as before)
   const canvasVideoStream = startCanvasComposite();
@@ -638,6 +669,7 @@ function startOneRecorder(stream, mime, label){
 function finishRecording(){
   activeRecorders.forEach(r => { if(r.state !== 'inactive') r.stop(); });
   if(recCanvasRafId) cancelAnimationFrame(recCanvasRafId);
+  soloCanvasStopFns.forEach(stop => stop());
   if(mixAudioCtx) mixAudioCtx.close();
   clearInterval(timerInterval);
   recording = false;
