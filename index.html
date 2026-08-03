@@ -608,7 +608,16 @@ function addTakeToLog(blob, mime){
   row.innerHTML = `<div class="meta">Take ${pad(takeCount)} · ${sizeMB} MB<span class="fname">${fname}</span></div><a href="${url}" download="${fname}">Download</a>`;
   takesList.prepend(row);
   takeCount++;
+
+  // Auto-download immediately so the file lands on disk without relying on a manual click
+  const autoLink = document.createElement('a');
+  autoLink.href = url;
+  autoLink.download = fname;
+  document.body.appendChild(autoLink);
+  autoLink.click();
+  document.body.removeChild(autoLink);
 }
 </script>
+
 </body>
 </html>
