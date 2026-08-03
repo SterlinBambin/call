@@ -284,6 +284,18 @@ const ICE_CONFIG = {
   ]
 };
 
+async function buildIceConfig(){
+  const servers = [...ICE_CONFIG.iceServers];
+  try{
+    const res = await fetch('https://turn.elixir-webrtc.org/?service=turn&username=takeone' + Math.random().toString(36).slice(2,8), { method: 'POST' });
+    const data = await res.json();
+    if(data && data.uris && data.uris.length){
+      servers.push({ urls: data.uris, username: data.username, credential: data.password });
+    }
+  } catch(e){ /* fall back to static servers only */ }
+  return { iceServers: servers };
+}
+
 let connectTimeout = null;
 function armConnectTimeout(){
   clearTimeout(connectTimeout);
@@ -294,7 +306,7 @@ function armConnectTimeout(){
   }, 15000);
 }
 
-function initPeer(){
+function initPeer(iceConfig){
   const urlParams = new URLSearchParams(location.search);
   const roomId = urlParams.get('room');
   armConnectTimeout();
@@ -302,7 +314,7 @@ function initPeer(){
   if(!roomId){
     // Host: create a peer with a short random id
     const hostId = 'take-one-' + Math.random().toString(36).slice(2,8);
-    peer = new Peer(hostId, { debug: 0, config: ICE_CONFIG });
+    peer = new Peer(hostId, { debug: 0, config: iceConfig });
     peer.on('open', id => {
       const link = location.origin + location.pathname + '?room=' + id;
       linkInput.value = link;
@@ -316,7 +328,7 @@ function initPeer(){
     });
   } else {
     // Guest: join the host
-    peer = new Peer(undefined, { debug: 0, config: ICE_CONFIG });
+    peer = new Peer(undefined, { debug: 0, config: iceConfig });
     linkInput.value = 'You joined via a session link — nothing to share.';
     linkHelp.textContent = 'You are the guest in this session.';
     copyBtn.style.display = 'none';
@@ -389,7 +401,10 @@ function addTakeToLog(blob){
 
 (async function start(){
   const ok = await getMedia();
-  if(ok) initPeer();
+  if(ok){
+    const iceConfig = await buildIceConfig();
+    initPeer(iceConfig);
+  }
 })();
 </script>
 </body>
