@@ -637,6 +637,19 @@ function createOrientedStream(videoEl, audioTrack){
   return stream;
 }
 
+let wakeLock = null;
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+  } catch(e){ /* not fatal — screen may still lock on unsupported browsers */ }
+}
+function releaseWakeLock(){
+  if(wakeLock){ wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if(recording && document.visibilityState === 'visible') requestWakeLock();
+});
+
 function beginRecording(){
   clearCallError();
   if(!remoteStream){
@@ -649,6 +662,7 @@ function beginRecording(){
     return;
   }
 
+  requestWakeLock();
   currentTakeNumber = takeCount;
   takeCount++;
   activeRecorders = [];
@@ -678,6 +692,7 @@ function beginRecording(){
     return;
   }
 
+  showCallError('Recording — keep this tab open and your phone unlocked, or the recording may cut out.');
   recording = true;
   startTime = Date.now();
   timerInterval = setInterval(() => { timecodeEl.textContent = formatTC(Date.now()-startTime); }, 250);
@@ -696,11 +711,12 @@ function startOneRecorder(stream, mime, label){
   rec.onerror = e => { showCallError('Recording error (' + label + '): ' + (e.error ? e.error.message : 'unknown error')); };
   rec.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
   rec.onstop = () => { const blob = new Blob(chunks, { type: mime }); addTakeToLog(blob, mime, label); };
-  rec.start();
+  rec.start(2000); // flush data every 2s instead of only at the end, so a mid-recording interruption doesn't lose everything
   activeRecorders.push(rec);
 }
 
 function finishRecording(){
+  releaseWakeLock();
   activeRecorders.forEach(r => { if(r.state !== 'inactive') r.stop(); });
   if(recCanvasRafId) cancelAnimationFrame(recCanvasRafId);
   soloCanvasStopFns.forEach(stop => stop());
