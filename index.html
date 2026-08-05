@@ -424,11 +424,39 @@ function boostAudioBitrate(call){
 function handleGuestDisconnected(){
   guestVideo.srcObject = null;
   remoteStream = null;
-  guestEmpty.style.display = 'flex';
-  guestEmpty.textContent = 'Guest disconnected';
-  participantCount.textContent = '1';
   const existingBtn = document.getElementById('unmuteBtn');
   if(existingBtn) existingBtn.remove();
+  guestEmpty.style.display = 'flex';
+  guestEmpty.innerHTML = 'Guest disconnected<br><button id="reconnectBtn" style="margin-top:12px;background:var(--brass);color:var(--ink);border:none;padding:9px 18px;border-radius:20px;font-family:\'Google Sans Code\',\'Roboto Mono\',monospace;font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;font-weight:700;cursor:pointer;">Reconnect</button>';
+  document.getElementById('reconnectBtn').addEventListener('click', attemptReconnect);
+  participantCount.textContent = '1';
+}
+
+async function attemptReconnect(){
+  clearCallError();
+  guestEmpty.textContent = 'Reconnecting…';
+  try{
+    if(!peer || peer.destroyed){
+      const iceConfig = await buildIceConfig();
+      initPeer(iceConfig);
+      return;
+    }
+    if(peer.disconnected) peer.reconnect();
+    if(roomId){
+      // Guest side: actively re-call the host
+      const call = peer.call(roomId, localStream);
+      currentCall = call;
+      call.on('stream', attachGuestStream);
+      call.on('close', handleGuestDisconnected);
+      call.on('error', e => showCallError('Call error: ' + e.message));
+    } else {
+      // Host side: just wait — the guest is the one who redials
+      guestEmpty.textContent = 'Waiting for guest to reconnect…';
+    }
+  } catch(e){
+    showCallError('Reconnect failed: ' + e.message);
+    handleGuestDisconnected();
+  }
 }
 
 function initPeer(iceConfig){
@@ -460,6 +488,9 @@ function initPeer(iceConfig){
     });
   }
   peer.on('error', e => console.warn('Connection error:', e.type));
+  peer.on('disconnected', () => {
+    if(remoteStream) handleGuestDisconnected();
+  });
 }
 
 linkBtn.addEventListener('click', () => {
