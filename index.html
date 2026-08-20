@@ -94,7 +94,7 @@
 
   .control-bar{flex-shrink:0;position:relative;display:flex;align-items:center;padding:18px 20px 24px;}
   .control-group-left{display:flex;align-items:center;gap:10px;}
-  .center-record{position:absolute;left:50%;transform:translateX(-50%);}
+  .center-record{position:absolute;left:50%;transform:translateX(-50%);flex-shrink:0;width:52px;height:52px;}
   .right-hangup{margin-left:auto;}
   .ctrl{width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:var(--panel-light2);color:var(--paper);border:1px solid var(--hairline);}
   .ctrl:hover{background:var(--panel);}
@@ -123,15 +123,17 @@
     .call-title{font-size:0.95rem;}
     .call-topbar{padding:10px 12px;}
     .takes-drawer{width:100%;}
-    .control-bar{gap:10px;padding:12px 16px calc(14px + env(safe-area-inset-bottom));}
-    .ctrl{width:46px;height:46px;font-size:1rem;}
+    .control-bar{gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));min-height:64px;}
+    .ctrl{width:54px;height:54px;font-size:1.1rem;}
+    .ctrl.record.center-record{width:54px;height:54px;}
     .tile-label{font-size:0.75rem;padding:4px 10px;bottom:8px;left:8px;}
     .tally-corner,.timecode-corner{font-size:0.6rem;padding:3px 8px;}
   }
   @media (max-height:700px){
     .call-topbar{padding:8px 12px;}
-    .control-bar{gap:8px;padding:8px 14px calc(10px + env(safe-area-inset-bottom));}
-    .ctrl{width:42px;height:42px;font-size:0.95rem;}
+    .control-bar{gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));min-height:56px;}
+    .ctrl{width:48px;height:48px;font-size:1rem;}
+    .ctrl.record.center-record{width:48px;height:48px;}
   }
 </style>
 </head>
